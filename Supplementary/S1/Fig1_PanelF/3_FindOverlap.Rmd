@@ -1,0 +1,49 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+outdir <- "/path/to/outdir/"
+
+allmarkers <- read.delim("/path/to/patientwise_allSigMarkers_mergedList.txt", row.names = 1)
+allmarkers <- mutate(allmarkers, broad = gsub("_.*", "", cluster))
+```
+
+```{r}
+all_normal <- allmarkers %>% filter(status == "Normal")
+all_cancer <- allmarkers %>% filter(status == "Cancer")
+```
+
+```{r}
+GetMarkers <- function(list, listname) {
+  patients_5 <- names(which(table(list %>% pull(gene)) == 5))
+  patients_4 <- names(which(table(list %>% pull(gene)) == 4))
+  mytable <- data.frame(genes = c(patients_5, patients_4),
+                        nPatients = c(rep(5, length(patients_5)),
+                        rep(4, length(patients_4))))
+  write.table(mytable, file = paste0(outdir, listname, "_PatientOverlapResults.txt"), sep = "\t", quote = FALSE, col.names = NA)
+}
+```
+
+```{r}
+GetMarkers(all_normal, "all_normal")
+GetMarkers(all_cancer, "all_cancer")
+```
+
+# check if any of the core genes are found in both cancer and normal
+
+```{r}
+all_normalExclusive <- all_normal[!(all_normal$gene %in% all_cancer$gene),]
+all_cancerExclusive <- all_cancer[!(all_cancer$gene %in% all_normal$gene),]
+```
+
+```{r}
+GetMarkers(all_normalExclusive, "all_normalExclusive")
+GetMarkers(all_cancerExclusive, "all_cancerExclusive")
+```
+

@@ -1,0 +1,83 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(clusterProfiler)
+library(dplyr)
+library(org.Hs.eg.db)
+library(ggplot2)
+library(ComplexHeatmap)
+library(stringr)
+library(enrichplot)
+library(dplyr)
+```
+
+
+```{r}
+outdir <- "/Volumes/SciDrive/Archive/SCC/1_sandbox/20220722_GeoMxNanostring/1_GeneOntology/1_processGeneLists/outdir/"
+
+DE <- read.csv("/Volumes/SciDrive/Archive/SCC/1_sandbox/20220722_GeoMxNanostring/1_GeneOntology/0_data/Nanostring_differentially_expressed_genes_edgeR.csv")
+
+sampleID <- "RNA"
+```
+
+# get universe
+
+```{r}
+universe <- as.data.frame(DE$genes)
+colnames(universe) <- c("universe_genes")
+write.table(universe, file = paste0(outdir, "universe.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+
+# get the up and down genes
+
+```{r}
+stroma <- as.data.frame(DE %>% filter(FDR <= 0.05) %>% filter(logFC.groupsStrom > 0) %>% pull(genes))
+stroma$sample <- "stroma"
+colnames(stroma) <- c("genes", "sample")
+                     
+panck <- as.data.frame(DE %>% filter(FDR <= 0.05) %>% filter(logFC.groupsStrom < 0) %>% pull(genes))
+panck$sample <- "panck"
+colnames(panck) <- c("genes", "sample")
+
+genelist <- rbind(stroma, panck)
+write.table(genelist, file = paste0(outdir, "DEgenes.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+
+# get the top 100 up and down genes
+
+```{r}
+DE <- mutate(DE, dir = ifelse(logFC.groupsStrom > 0, "stroma", "panck"))
+top100 <- DE %>% filter(FDR <= 0.05) %>% group_by(dir) %>% arrange(-(abs(logFC.groupsStrom))) %>% dplyr::slice(1:100, with_ties = FALSE)
+
+stroma100 <- as.data.frame(top100 %>% filter(FDR <= 0.05) %>% filter(logFC.groupsStrom > 0) %>% pull(genes))
+stroma100$sample <- "stroma"
+colnames(stroma100) <- c("genes", "sample")
+                     
+panck100 <- as.data.frame(top100 %>% filter(FDR <= 0.05) %>% filter(logFC.groupsStrom < 0) %>% pull(genes))
+panck100$sample <- "panck"
+colnames(panck100) <- c("genes", "sample")
+
+genelist <- rbind(stroma100, panck100)
+write.table(genelist, file = paste0(outdir, "DEgenes_top100.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+
+# get the top 100 up and down genes
+
+```{r}
+DE <- mutate(DE, dir = ifelse(logFC.groupsStrom > 0, "stroma", "panck"))
+top30 <- DE %>% filter(FDR <= 0.05) %>% group_by(dir) %>% arrange(-(abs(logFC.groupsStrom))) %>% dplyr::slice(1:30, with_ties = FALSE)
+
+stroma30 <- as.data.frame(top30 %>% filter(FDR <= 0.05) %>% filter(logFC.groupsStrom > 0) %>% pull(genes))
+stroma30$sample <- "stroma"
+colnames(stroma30) <- c("genes", "sample")
+                     
+panck30 <- as.data.frame(top30 %>% filter(FDR <= 0.05) %>% filter(logFC.groupsStrom < 0) %>% pull(genes))
+panck30$sample <- "panck"
+colnames(panck30) <- c("genes", "sample")
+
+genelist <- rbind(stroma30, panck30)
+write.table(genelist, file = paste0(outdir, "DEgenes_top30.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```

@@ -1,0 +1,190 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+library(clusterProfiler)
+library(dplyr)
+library(org.Hs.eg.db)
+library(ggplot2)
+library(ComplexHeatmap)
+library(stringr)
+library(enrichplot)
+```
+
+
+```{r}
+outdir <- "/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/6_RunGO/2_RunGO_cancer/outdir/"
+
+DE <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/5_PrepVenns/outdir/core_4-5hits_cancer.txt", header = TRUE)
+universe <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/6_RunGO/1_GetCellchatUniverse/outdir/geneuniverse.txt", row.names = 1)
+df <- readRDS("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/12_PostPrakrithiMakeSeurat/outdir/PreHarmonyIntegratedObject_SCCBCC_withFinalUMAP+Metadata.RDS")
+
+sampleID <- "cancer"
+```
+# split the DE genes into individual entries
+
+```{r}
+DE <- unique(unlist(stringr::str_split(DE$all_cancer, "_")))
+```
+
+```{r}
+universe <- universe$universe_genes
+universe_entrez <- mapIds(org.Hs.eg.db, keys=universe, column="ENTREZID", keytype="SYMBOL")
+universe_entrez <- universe_entrez[!(is.na(universe_entrez))]
+
+# Get Entrez codes for DE gene
+# first remove genes that aren't in valid hits, because if they're the only genes for one list it fails
+DE <- DE[DE %in% names(universe_entrez)]
+prep_IDs <- function(list_to_test) {
+  myIDs = mapIds(org.Hs.eg.db, column = "ENTREZID", keytype = "SYMBOL", keys = list_to_test)
+  myIDs = myIDs[!(is.na(myIDs))]
+  return(myIDs)
+}
+all_entrez <- prep_IDs(DE)
+```
+
+```{r}
+# Run the GO analysis and filter to (1) remove giant clusters, (2) reduce simplicity
+ego <- enrichGO(gene = all_entrez, universe = universe_entrez, OrgDb = "org.Hs.eg.db", ont = "BP", readable = TRUE, pvalueCutoff = 0.01, pAdjustMethod = "BH")
+ego_filt <- gsfilter(ego, max = 200)
+ego_filt_simple <- clusterProfiler::simplify(ego_filt, cutoff = 0.5)
+
+# save output as RDS, txt file, simple dotplot
+## RDS
+saveRDS(ego_filt_simple, paste0(outdir, sampleID, "_GOFiltSimp.RDS"))
+## txt file
+tosave <- ego_filt_simple@result
+tosave$GeneRatio <- gsub("\\/", "|", tosave$GeneRatio)
+tosave$BgRatio <- gsub("\\/", "|", tosave$BgRatio)
+write.table(tosave, file = paste0(outdir, sampleID, "_top100GO_FiltSimp.txt"), sep = "\t", quote = FALSE, col.names = NA)
+
+## bar plot
+pdf(paste0(outdir, sampleID, "_CoreGenes_barplot.pdf"), width = 15)
+barplot(ego_filt_simple, showCategory = 20)
+dev.off()
+
+## dotplot
+pdf(paste0(outdir, sampleID, "_CoreGenes_dotplot.pdf"), width = 15)
+dotplot(ego_filt_simple, font.size = 8, showCategory = 20)
+dev.off()
+
+## networkplot
+pdf(paste0(outdir, sampleID, "_CoreGenes_networkplot.pdf"), width = 15)
+cnetplot(ego_filt_simple, showCategory = 10, node_label = "category")
+dev.off()
+
+## heatplot
+pdf(paste0(outdir, sampleID, "_CoreGenes_heatplot.pdf"), width = 15)
+heatplot(ego_filt_simple, showCategory = 20)
+dev.off()
+
+## networkplot 2
+pdf(paste0(outdir, sampleID, "_CoreGenes_networkplotv2.pdf"), width = 15)
+emapplot(pairwise_termsim(ego_filt_simple))
+dev.off()
+
+# ------------------------------------------------------------------
+# STEP 3a: DEFINE FUNCTION TO MAKE PLOTS
+# ------------------------------------------------------------------
+
+print("commencing step 3a: defining function to make plots")
+
+MakeBarplots <- function(n, myWidth, myHeight) {
+  # where n = number of gene to pick
+  # where myWidth = desired width of saved ggplot
+  # where myHeight = desired height of saved ggplot
+  analysisID <- paste0("top", n)
+
+  # get the top N of each group
+  topN <- ego_filt_simple@result %>%
+    arrange(p.adjust) %>%
+    dplyr::slice(1:n)
+  topN <- mutate(topN, ID_desc = paste0(ID, ": ", Description))
+
+  topNuniq <- unique(topN$Description)
+  topNuniq_IDdesc <- unique(topN$ID_desc)
+  
+  topN_allhits <- ego_filt_simple@result[which(ego_filt_simple@result$Description %in% topNuniq),]
+  
+  # prepare the data table
+  table <- topN_allhits[,c(1,2,3,4,5,6)]
+  
+  # add in the various ratios to control dot size
+  table <- tidyr::separate(data = table, col = GeneRatio, into = c("k_GOIinSet", "n_GOI"), sep = "\\/")
+  table <- tidyr::separate(data = table, col = BgRatio, into = c("M_Set", "N_background"), sep = "\\/")
+  ## make numeric
+  table$k_GOIinSet <- as.numeric(table$k_GOIinSet)
+  table$n_GOI <- as.numeric(table$n_GOI)
+  table$M_Set <- as.numeric(table$M_Set)
+  table$N_background <- as.numeric(table$N_background)  
+  ## make a ratio
+  table <- mutate(table, GeneRatio = k_GOIinSet / n_GOI)
+  table <- mutate(table, Ratio_kM = k_GOIinSet / M_Set)
+  
+  # for the sake of visualisation, convert p-values to log10 and invert the numbers of the downregulated hits
+  table <- mutate(table, padjdir = -log10(p.adjust + 1e-300))
+  
+  # simplify the "traj_0_" cluster names to just the number to aid with the ordering/legend
+  #table <- mutate(table, Path = as.numeric(word(Cluster, 2, sep = "_")))
+  #table$Path <- as.factor(table$Path) # convert to factor data type
+  #levels(table$Path) <- sort(as.numeric(levels(table$Path)))
+  
+  # work out which gene to plot and order them by path ID
+  markers <- table$Description %>% unique()
+  table$Description <- factor(table$Description, levels = rev(topNuniq))
+  
+  table <- mutate(table, ID_desc = paste0(ID, ": ", Description))
+  
+  table$Description <- factor(table$Description, levels = rev(topNuniq))
+  table$ID_desc <- factor(table$ID_desc, levels = rev(topNuniq_IDdesc))
+  
+  # generate the plots
+  mybarplot <- ggplot(table, aes(y = Description, x = padjdir)) +
+    geom_bar(stat = "identity") +
+    theme_classic() +
+    theme(axis.title.y = element_blank()) +
+    scale_fill_manual(values = palette) +
+    scale_y_discrete(labels = function(x) str_wrap(x, width = 40)) # wrap the labels
+  ggsave(plot = mybarplot, filename = paste0(outdir, sampleID, "_barplot_coreGenes.pdf"), width = myWidth, height = myHeight)
+}
+
+# ------------------------------------------------------------------
+# STEP 3b: MAKE PLOTS
+# ------------------------------------------------------------------
+
+print("commencing step 3b: making plots")
+
+# MakeDotplots(nGenes, Width, Height)
+MakeBarplots(3, 10, 10) #5.5, 3.5
+MakeBarplots(10, 10, 10) #6, 7.5
+MakeBarplots(20, 10, 10) #8, 10
+
+# ------------------------------------------------------------------
+# STEP 4: MAKE A HEATMAP TO SHOW GO TERM OVERLAP
+# ------------------------------------------------------------------
+
+print("commencing step 4: calculating GO overlap heatmap")
+
+# convert the gene into a table
+genehits <- tosave[,c("Description", "geneID")]
+s <- strsplit(genehits$geneID, split = "/")
+genehits <- data.frame(
+                       Description = rep(genehits$Description, sapply(s, length)),
+                       geneID = unlist(s))
+write.table(genehits, file = paste0(outdir, sampleID, "_genehits.txt"), sep = "\t", quote = FALSE, col.names = NA)
+
+# ------------------------------------------------------------------
+# SESSION INFO
+# ------------------------------------------------------------------
+
+print("finished!")
+
+sink(paste0(outdir, sampleID, "_sessionInfo.txt"))
+date()
+sessionInfo()
+sink()
+```

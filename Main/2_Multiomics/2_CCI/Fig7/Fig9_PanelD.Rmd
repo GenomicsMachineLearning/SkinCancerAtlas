@@ -1,0 +1,55 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+outdir <- "/path/to/outdir/"
+df <- readRDS("/path/to/SlimSCC_removeScale_NormalisedRNAAssay.RDS") #the same thing but on HD (quicker to load)
+
+Idents(df) <- "pre"
+DefaultAssay(df) <- "RNA"
+```
+
+```{r}
+# DimPlot(df, group.by = "pre")
+# DimPlot(df, group.by = "pre", split.by = "orig_ident")
+# DimPlot(df, group.by = "pre", split.by = "type_ident")
+```
+
+# Plot expression of key L-R pairs
+
+```{r}
+LRgenes <- c("IL34", "CSF1R")
+```
+
+```{r}
+Idents(df) <- "orig_ident"
+
+for (gene in LRgenes) {
+  data_exp <- FeaturePlot(df, order = TRUE, features = gene, pt.size = 0.1)
+  data_exp <- data_exp$data 
+  colnames(data_exp) <- c("UMAP_1", "UMAP_2", "ident", "myGene")
+  myplot2 <- ggplot(data_exp, aes(x = UMAP_1, y = UMAP_2, color = myGene)) +
+  ggplot2::scale_color_gradientn(colours = c("grey80", "yellow", "orange", "red")) +
+  geom_point(size = 0.1) +
+  facet_grid(. ~ ident) +
+  coord_fixed() +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        plot.title = element_blank())
+  ggsave(plot = myplot2, filename = paste0(outdir, "LRgenes_", gene, ".pdf"), width = 6, height = 3)
+}
+
+Idents(df) <- "pre"
+```
+

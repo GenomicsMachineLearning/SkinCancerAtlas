@@ -1,0 +1,418 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+outdir <- "/path/to/outdir/"
+
+params <- read.delim("/path/to/plotting_params.txt", row.names = 1) #plotting parameters
+
+# load the Seurat objects for the DE analysis
+BCC <- readRDS("/path/to/Visium_BCC_inte.rds")
+SCC <- readRDS("/path/to/Visium_SCC_inte.rds")
+Mela <- readRDS("/path/to/Visium_Mela_inte.rds")
+```
+
+```{r}
+# load the LR scores from stLearn run (all scores, not just significant)
+BCC_B18 <- read.csv("/path/to/B18BCC_LR_score.csv", row.names = 1)
+BCC_E15 <- read.csv("/path/to/E15BCC_LR_score.csv", row.names = 1)
+BCC_F21 <- read.csv("/path/to/F21BCC_LR_score.csv", row.names = 1)
+
+SCC_B18 <- read.csv("/path/to/B18SCC_LR_score.csv", row.names = 1)
+SCC_E15 <- read.csv("/path/to/E15SCC_LR_score.csv", row.names = 1)
+SCC_F21 <- read.csv("/path/to/F21SCC_LR_score.csv", row.names = 1)
+SCC_P13 <- read.csv("/path/to/P13SCC_LR_score.csv", row.names = 1)
+SCC_P30 <- read.csv("/path/to/P30SCC_LR_score.csv", row.names = 1)
+
+mel_6747 <- read.csv("/path/to/Mela6747_LR_score.csv", row.names = 1)
+mel_21031 <- read.csv("/path/to/Mela21031_LR_score.csv", row.names = 1)
+mel_48974 <- read.csv("/path/to/Mela48974_LR_score.csv", row.names = 1)
+mel_66487 <- read.csv("/path/to/Mela66487_LR_score.csv", row.names = 1)
+```
+
+# Set up a function to plot the samples
+
+```{r}
+DoFeaturePlot <- function(myfeature) {
+  SpatialFeaturePlot(SCC, features = myfeature, images = "slice1", pt.size.factor = params["SCC_B18","dotsize"]) +
+  theme(aspect.ratio = params["SCC_B18","ratio"])
+  ggsave(filename = paste0(outdir, myfeature, "_", "SCC_B18", ".jpeg"))
+  
+SpatialFeaturePlot(SCC, features = myfeature, images = "slice1.1", pt.size.factor = params["SCC_E15","dotsize"]) +
+  theme(aspect.ratio = params["SCC_E15","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "SCC_E15", ".jpeg"))
+SpatialFeaturePlot(SCC, features = myfeature, images = "slice1.2", pt.size.factor = params["SCC_F21","dotsize"]) +
+  theme(aspect.ratio = params["SCC_F21","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "SCC_F21", ".jpeg"))
+SpatialFeaturePlot(SCC, features = myfeature, images = "slice1.3", pt.size.factor = params["SCC_P13","dotsize"]) +
+  theme(aspect.ratio = params["SCC_P13","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "SCC_P13", ".jpeg"))
+SpatialFeaturePlot(SCC, features = myfeature, images = "slice1.4", pt.size.factor = params["SCC_P30","dotsize"]) +
+  theme(aspect.ratio = params["SCC_P30","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "SCC_P30", ".jpeg"))
+
+SpatialFeaturePlot(BCC, features = myfeature, images = "slice1", pt.size.factor = params["BCC_B18","dotsize"]) + 
+  theme(aspect.ratio = params["BCC_B18","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "BCC_B18", ".jpeg"))
+SpatialFeaturePlot(BCC, features = myfeature, images = "slice1.1", pt.size.factor = params["BCC_E15","dotsize"]) +
+  theme(aspect.ratio = params["BCC_E15","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "BCC_E15", ".jpeg"))
+SpatialFeaturePlot(BCC, features = myfeature, images = "slice1.2", pt.size.factor = params["BCC_F21","dotsize"]) +
+  theme(aspect.ratio = params["BCC_F21","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "BCC_F21", ".jpeg"))
+
+SpatialFeaturePlot(Mela, features = myfeature, images = params["mel_48974","slice"], pt.size.factor = params["mel_48974","dotsize"]) +
+  theme(aspect.ratio = params["mel_48974","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "mel_48974", ".jpeg"))
+SpatialFeaturePlot(Mela, features = myfeature, images = "slice1.1", pt.size.factor = params["mel_66487","dotsize"]) +
+  theme(aspect.ratio = params["mel_66487","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "mel_66487", ".jpeg"))
+SpatialFeaturePlot(Mela, features = myfeature, images = "slice1.2", pt.size.factor = params["mel_21031","dotsize"]) +
+  theme(aspect.ratio = params["mel_21031","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "mel_21031", ".jpeg"))
+SpatialFeaturePlot(Mela, features = myfeature, images = "slice1.3", pt.size.factor = params["mel_6747","dotsize"]) + 
+  theme(aspect.ratio = params["mel_6747","ratio"])
+ggsave(filename = paste0(outdir, myfeature, "_", "mel_6747", ".jpeg"))
+}
+```
+
+
+```{r}
+# now we just want to extract the CSF1R/IL34 one
+BCC_B18 <- BCC_B18[,"IL34_CSF1R", drop = FALSE]
+#BCC_E15 <- BCC_E15[,"IL34_CSF1R", drop = FALSE]
+BCC_F21 <- BCC_F21[,"IL34_CSF1R", drop = FALSE]
+
+SCC_B18 <- SCC_B18[,"IL34_CSF1R", drop = FALSE]
+#SCC_E15 <- SCC_E15[,"IL34_CSF1R", drop = FALSE]
+#SCC_F21 <- SCC_F21[,"IL34_CSF1R", drop = FALSE]
+SCC_P13 <- SCC_P13[,"IL34_CSF1R", drop = FALSE]
+SCC_P30 <- SCC_P30[,"IL34_CSF1R", drop = FALSE]
+
+mel_6747 <- mel_6747[,"IL34_CSF1R", drop = FALSE]
+mel_21031 <- mel_21031[,"IL34_CSF1R", drop = FALSE]
+mel_48974 <- mel_48974[,"IL34_CSF1R", drop = FALSE]
+mel_66487 <- mel_66487[,"IL34_CSF1R", drop = FALSE]
+```
+
+# Add into the Seurat object so I can plot the scores
+
+```{r}
+# update with the unique sample barcodes
+## first we need to find out what the barcodes are
+unique(SCC[["sample"]])
+rownames(SCC_P30) <- paste0(rownames(SCC_P30), "_5")
+rownames(SCC_P13) <- paste0(rownames(SCC_P13), "_4")
+rownames(SCC_B18) <- paste0(rownames(SCC_B18), "_1")
+allSCC <- rbind(SCC_P30, SCC_P13, SCC_B18)
+
+# update with the unique sample barcodes
+## first we need to find out what the barcodes are
+unique(BCC[["sample"]])
+rownames(BCC_B18) <- paste0(rownames(BCC_B18), "_1")
+rownames(BCC_F21) <- paste0(rownames(BCC_F21), "_3")
+allBCC <- rbind(BCC_B18, BCC_F21)
+
+# update with the unique sample barcodes
+## first we need to find out what the barcodes are
+unique(Mela[["sample"]])
+rownames(mel_66487) <- paste0(rownames(mel_66487), "_2")
+rownames(mel_48974) <- paste0(rownames(mel_48974), "_1")
+rownames(mel_6747) <- paste0(rownames(mel_6747), "_4")
+rownames(mel_21031) <- paste0(rownames(mel_21031), "_3")
+allmel <- rbind(mel_66487, mel_48974, mel_6747, mel_21031)
+```
+
+```{r}
+# now add into the Seurat object
+SCC <- AddMetaData(SCC, allSCC)
+BCC <- AddMetaData(BCC, allBCC)
+Mela <- AddMetaData(Mela, allmel)
+
+# get rid of the NAs
+SCC_meta <- SCC[["IL34_CSF1R"]]
+BCC_meta <- BCC[["IL34_CSF1R"]]
+mel_meta <- Mela[["IL34_CSF1R"]]
+
+# fix the NAs
+SCC_meta[is.na(SCC_meta)] <- 0
+BCC_meta[is.na(BCC_meta)] <- 0
+mel_meta[is.na(mel_meta)] <- 0
+
+# add back into metadata
+SCC <- AddMetaData(SCC, SCC_meta)
+BCC <- AddMetaData(BCC, BCC_meta)
+Mela <- AddMetaData(Mela, mel_meta)
+```
+
+# Plot the LR scores in each sample
+
+```{r}
+DoFeaturePlot("IL34_CSF1R")
+```
+# Explore thresholds
+
+Options include:
+* Spots above 25% of the max score (across cancer types, or within cancer types)
+* Spots above 50% of the max score (across cancer types, or within cancer types)
+* Non-zero spots
+
+```{r}
+# test binary spots
+SCC_meta_bin <- SCC_meta
+BCC_meta_bin <- BCC_meta
+Mela_meta_bin <- mel_meta
+
+SCC_meta_bin[SCC_meta_bin > 0] <- 1
+colnames(SCC_meta_bin) <- "IL34_CSF1R_binary"
+BCC_meta_bin[BCC_meta_bin > 0] <- 1
+colnames(BCC_meta_bin) <- "IL34_CSF1R_binary"
+Mela_meta_bin[Mela_meta_bin > 0] <- 1
+colnames(Mela_meta_bin) <- "IL34_CSF1R_binary"
+
+# add back into metadata
+SCC <- AddMetaData(SCC, SCC_meta_bin)
+BCC <- AddMetaData(BCC, BCC_meta_bin)
+Mela <- AddMetaData(Mela, Mela_meta_bin)
+
+# Plot
+DoFeaturePlot("IL34_CSF1R_binary")
+```
+The distribution/sparseness really varies across tissues
+
+```{r}
+# test 25% of max
+maxval <- max(c(SCC_meta$IL34_CSF1R, BCC_meta$IL34_CSF1R, mel_meta$IL34_CSF1R))
+threshold <- maxval/4
+
+# make a copy
+SCC_meta_25 <- SCC_meta
+BCC_meta_25 <- BCC_meta
+Mela_meta_25 <- mel_meta
+
+# renumber
+SCC_meta_25[SCC_meta_25 < threshold] <- 0
+SCC_meta_25[SCC_meta_25 >= threshold] <- 1
+colnames(SCC_meta_25) <- "IL34_CSF1R_25"
+
+BCC_meta_25[BCC_meta_25 < threshold] <- 0
+BCC_meta_25[BCC_meta_25 >= threshold] <- 1
+colnames(BCC_meta_25) <- "IL34_CSF1R_25"
+
+Mela_meta_25[Mela_meta_25 < threshold] <- 0
+Mela_meta_25[Mela_meta_25 >= threshold] <- 1
+colnames(Mela_meta_25) <- "IL34_CSF1R_25"
+
+# add back into metadata
+SCC <- AddMetaData(SCC, SCC_meta_25)
+BCC <- AddMetaData(BCC, BCC_meta_25)
+Mela <- AddMetaData(Mela, Mela_meta_25)
+
+# Plot
+DoFeaturePlot("IL34_CSF1R_25")
+```
+
+```{r}
+# test 50% of max
+maxval <- max(c(SCC_meta$IL34_CSF1R, BCC_meta$IL34_CSF1R, mel_meta$IL34_CSF1R))
+threshold <- maxval/4
+
+# make a copy
+SCC_meta_50 <- SCC_meta
+BCC_meta_50 <- BCC_meta
+Mela_meta_50 <- mel_meta
+
+# renumber
+SCC_meta_50[SCC_meta_50 < threshold] <- 0
+SCC_meta_50[SCC_meta_50 >= threshold] <- 1
+colnames(SCC_meta_50) <- "IL34_CSF1R_50"
+
+BCC_meta_50[BCC_meta_50 < threshold] <- 0
+BCC_meta_50[BCC_meta_50 >= threshold] <- 1
+colnames(BCC_meta_50) <- "IL34_CSF1R_50"
+
+Mela_meta_50[Mela_meta_50 < threshold] <- 0
+Mela_meta_50[Mela_meta_50 >= threshold] <- 1
+colnames(Mela_meta_50) <- "IL34_CSF1R_50"
+
+# add back into metadata
+SCC <- AddMetaData(SCC, SCC_meta_50)
+BCC <- AddMetaData(BCC, BCC_meta_50)
+Mela <- AddMetaData(Mela, Mela_meta_50)
+
+# Plot
+DoFeaturePlot("IL34_CSF1R_50")
+```
+
+# How many spots do we have with each option
+
+Even 25% looks pretty sparse in some samples
+
+```{r}
+print("binary")
+table(SCC$IL34_CSF1R_binary)
+table(BCC$IL34_CSF1R_binary)
+table(Mela$IL34_CSF1R_binary)
+print("25%")
+table(SCC$IL34_CSF1R_25)
+table(BCC$IL34_CSF1R_25)
+table(Mela$IL34_CSF1R_25)
+print("50%")
+table(SCC$IL34_CSF1R_50)
+table(BCC$IL34_CSF1R_50)
+table(Mela$IL34_CSF1R_50)
+```
+# Let's test the 25% of the max (where the same max is used for all tissues)
+
+```{r}
+#want to filter only to spots expressing CSF1R as well
+SCC_CSF1R <- as.data.frame(SCC@assays$Spatial@counts["CSF1R",])
+SCC_CSF1R[SCC_CSF1R > 0] <- 1
+
+BCC_CSF1R <- as.data.frame(BCC@assays$Spatial@counts["CSF1R",])
+BCC_CSF1R[BCC_CSF1R > 0] <- 1
+
+mel_CSF1R <- as.data.frame(Mela@assays$Spatial@counts["CSF1R",])
+mel_CSF1R[mel_CSF1R > 0] <- 1
+```
+
+```{r}
+# combine the CSF1R and 25% IL34_CSF1R info together
+SCC_meta2 <- SCC[["IL34_CSF1R_25"]]
+SCC_meta2 <- cbind(SCC_meta2, SCC_CSF1R)
+SCC_meta2 <- mutate(SCC_meta2, totest_25pc = ifelse(IL34_CSF1R_25 == 1 & `SCC@assays$Spatial@counts["CSF1R", ]` == 1, "yes", "no"))
+
+BCC_meta2 <- BCC[["IL34_CSF1R_25"]]
+BCC_meta2 <- cbind(BCC_meta2, BCC_CSF1R)
+BCC_meta2 <- mutate(BCC_meta2, totest_25pc = ifelse(IL34_CSF1R_25 == 1 & `BCC@assays$Spatial@counts["CSF1R", ]` == 1, "yes", "no"))
+
+Mela_meta2 <- Mela[["IL34_CSF1R_25"]]
+Mela_meta2 <- cbind(Mela_meta2, mel_CSF1R)
+Mela_meta2 <- mutate(Mela_meta2, totest_25pc = ifelse(IL34_CSF1R_25 == 1 & `Mela@assays$Spatial@counts["CSF1R", ]` == 1, "yes", "no"))
+
+SCC <- AddMetaData(SCC, SCC_meta2[,"totest_25pc",drop = FALSE])
+BCC <- AddMetaData(BCC, BCC_meta2[,"totest_25pc",drop = FALSE])
+Mela <- AddMetaData(Mela, Mela_meta2[,"totest_25pc",drop = FALSE])
+```
+
+```{r}
+# how many hits
+table(SCC$totest)
+table(BCC$totest)
+table(Mela$totest)
+
+#table(SCC$IL34_CSF1R_25)
+#table(BCC$IL34_CSF1R_25)
+#table(Mela$IL34_CSF1R_25)
+```
+
+
+# try doing the DE analysis between the y and n groups
+
+```{r}
+Idents(SCC) <- "IL34_CSF1R_25"
+Idents(BCC) <- "IL34_CSF1R_25"
+Idents(Mela) <- "IL34_CSF1R_25"
+
+markers_SCC <- FindMarkers(SCC, ident.1 = 1, ident.2 = 0, min.pct = 0.25, logfc.threshold = 0.25) %>% filter(p_val_adj <= 0.05)
+markers_BCC <- FindMarkers(BCC, ident.1 = 1, ident.2 = 0, min.pct = 0.25, logfc.threshold = 0.25) %>% filter(p_val_adj <= 0.05)
+markers_mel <- FindMarkers(Mela, ident.1 = 1, ident.2 = 0, min.pct = 0.25, logfc.threshold = 0.25) %>% filter(p_val_adj <= 0.05)
+```
+
+```{r}
+Idents(SCC) <- "totest"
+Idents(BCC) <- "totest"
+Idents(Mela) <- "totest"
+
+markers_SCC_2 <- FindMarkers(SCC, ident.1 = "yes", ident.2 = "no", min.pct = 0.25, logfc.threshold = 0.25) %>% filter(p_val_adj <= 0.05)
+markers_BCC_2 <- FindMarkers(BCC, ident.1 = "yes", ident.2 = "no", min.pct = 0.25, logfc.threshold = 0.25) %>% filter(p_val_adj <= 0.05)
+markers_mel_2 <- FindMarkers(Mela, ident.1 = "yes", ident.2 = "no", min.pct = 0.25, logfc.threshold = 0.25) %>% filter(p_val_adj <= 0.05)
+
+write.table(markers_SCC_2, file = paste0(outdir, "SCC_markers_25pc.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(markers_BCC_2, file = paste0(outdir, "BCC_markers_25pc.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(markers_mel_2, file = paste0(outdir, "mel_markers_25pc.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+
+# Run DEG on binary presence/absence column
+
+
+```{r}
+# combine the CSF1R and 25% IL34_CSF1R info together
+SCC_meta3 <- SCC[["IL34_CSF1R_binary"]]
+SCC_meta3 <- cbind(SCC_meta3, SCC_CSF1R)
+SCC_meta3 <- mutate(SCC_meta3, totest_binary = ifelse(IL34_CSF1R_binary == 1 & `SCC@assays$Spatial@counts["CSF1R", ]` == 1, "yes", "no"))
+
+BCC_meta3 <- BCC[["IL34_CSF1R_binary"]]
+BCC_meta3 <- cbind(BCC_meta3, BCC_CSF1R)
+BCC_meta3 <- mutate(BCC_meta3, totest_binary = ifelse(IL34_CSF1R_binary == 1 & `BCC@assays$Spatial@counts["CSF1R", ]` == 1, "yes", "no"))
+
+Mela_meta3 <- Mela[["IL34_CSF1R_binary"]]
+Mela_meta3 <- cbind(Mela_meta3, mel_CSF1R)
+Mela_meta3 <- mutate(Mela_meta3, totest_binary = ifelse(IL34_CSF1R_binary == 1 & `Mela@assays$Spatial@counts["CSF1R", ]` == 1, "yes", "no"))
+
+SCC <- AddMetaData(SCC, SCC_meta3[,"totest_binary",drop = FALSE])
+BCC <- AddMetaData(BCC, BCC_meta3[,"totest_binary",drop = FALSE])
+Mela <- AddMetaData(Mela, Mela_meta3[,"totest_binary",drop = FALSE])
+```
+
+```{r}
+# how many hits
+table(SCC$test_binary)
+table(BCC$test_binary)
+table(Mela$test_binary)
+
+#table(SCC$IL34_CSF1R_25)
+#table(BCC$IL34_CSF1R_25)
+#table(Mela$IL34_CSF1R_25)
+```
+
+# try doing the DE analysis between the y and n groups
+
+```{r}
+Idents(SCC) <- "test_binary"
+Idents(BCC) <- "test_binary"
+Idents(Mela) <- "test_binary"
+
+markers_SCC <- FindMarkers(SCC, ident.1 = "yes", ident.2 = "no", min.pct = 0.25, logfc.threshold = 0.25) %>% filter(p_val_adj <= 0.05)
+markers_BCC <- FindMarkers(BCC, ident.1 = "yes", ident.2 = "no", min.pct = 0.25, logfc.threshold = 0.25) %>% filter(p_val_adj <= 0.05)
+markers_mel <- FindMarkers(Mela, ident.1 = "yes", ident.2 = "no", min.pct = 0.25, logfc.threshold = 0.25) %>% filter(p_val_adj <= 0.05)
+
+write.table(markers_SCC, file = paste0(outdir, "SCC_markers_binaryGroups.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(markers_BCC, file = paste0(outdir, "BCC_markers_binaryGroups.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(markers_mel, file = paste0(outdir, "mel_markers_binaryGroups.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+
+# merge the files together
+
+```{r}
+# binary
+markers_SCC$cancer <- "SCC"
+markers_BCC$cancer <- "BCC"
+markers_mel$cancer <- "mel"
+binary_all <- rbind(markers_SCC, markers_BCC, markers_mel)
+write.table(binary_all, file = paste0(outdir, "allmarkers_binaryGroups.txt"), sep = "\t", quote = FALSE, col.names = NA)
+# 25%
+markers_SCC_2$cancer <- "SCC"
+markers_BCC_2$cancer <- "BCC"
+markers_mel_2$cancer <- "mel"
+binary_25pc <- rbind(markers_SCC_2, markers_BCC_2, markers_mel_2)
+write.table(binary_25pc, file = paste0(outdir, "allmarkers_25pc.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+
+```{r}
+SCC_meta_xinnan <- SCC[[c("totest_25pc", "totest_binary")]]
+BCC_meta_xinnan <- BCC[[c("totest_25pc", "totest_binary")]]
+mel_meta_xinnan <- Mela[[c("totest_25pc", "totest_binary")]]
+write.table(SCC_meta_xinnan, file = paste0(outdir, "SCC_spotsToTest.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(BCC_meta_xinnan, file = paste0(outdir, "BCC_spotsToTest.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(mel_meta_xinnan, file = paste0(outdir, "mel_spotsToTest.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+

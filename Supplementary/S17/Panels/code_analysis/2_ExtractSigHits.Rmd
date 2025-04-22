@@ -1,0 +1,60 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+indir <- "/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/2_RunCellChat/"
+
+outdir <- "/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/"
+```
+
+```{r}
+P1C <- read.delim(paste0(indir, "P1_cancer/", "AllPredictedInteractions_LR.txt"))
+P2C <- read.delim(paste0(indir, "P2_cancer/", "AllPredictedInteractions_LR.txt"))
+P3C <- read.delim(paste0(indir, "P3_cancer/", "AllPredictedInteractions_LR.txt"))
+P4C <- read.delim(paste0(indir, "P4_cancer/", "AllPredictedInteractions_LR.txt"))
+P5C <- read.delim(paste0(indir, "P5_cancer/", "AllPredictedInteractions_LR.txt"))
+
+P1H <- read.delim(paste0(indir, "P1_healthy/", "AllPredictedInteractions_LR.txt"))
+P2H <- read.delim(paste0(indir, "P2_healthy/", "AllPredictedInteractions_LR.txt"))
+P3H <- read.delim(paste0(indir, "P3_healthy/", "AllPredictedInteractions_LR.txt"))
+P4H <- read.delim(paste0(indir, "P4_healthy/", "AllPredictedInteractions_LR.txt"))
+P5H <- read.delim(paste0(indir, "P5_healthy/", "AllPredictedInteractions_LR.txt"))
+```
+
+# filter pvalability
+
+```{r}
+P1C <- P1C %>% filter(pval <= 0.05)
+P2C <- P2C %>% filter(pval <= 0.05)
+P3C <- P3C %>% filter(pval <= 0.05)
+P4C <- P4C %>% filter(pval <= 0.05)
+P5C <- P5C %>% filter(pval <= 0.05)
+
+P1H <- P1H %>% filter(pval <= 0.05)
+P2H <- P2H %>% filter(pval <= 0.05)
+P3H <- P3H %>% filter(pval <= 0.05)
+P4H <- P4H %>% filter(pval <= 0.05)
+P5H <- P5H %>% filter(pval <= 0.05)
+```
+
+```{r}
+write.table(P1C, file = paste0(outdir, "P1C", "_LR_signif.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(P2C, file = paste0(outdir, "P2C", "_LR_signif.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(P3C, file = paste0(outdir, "P3C", "_LR_signif.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(P4C, file = paste0(outdir, "P4C", "_LR_signif.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(P5C, file = paste0(outdir, "P5C", "_LR_signif.txt"), sep = "\t", quote = FALSE, col.names = NA)
+
+write.table(P1H, file = paste0(outdir, "P1H", "_LR_signif.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(P2H, file = paste0(outdir, "P2H", "_LR_signif.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(P3H, file = paste0(outdir, "P3H", "_LR_signif.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(P4H, file = paste0(outdir, "P4H", "_LR_signif.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(P5H, file = paste0(outdir, "P5H", "_LR_signif.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```

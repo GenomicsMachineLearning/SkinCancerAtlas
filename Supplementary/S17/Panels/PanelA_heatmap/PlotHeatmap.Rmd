@@ -1,0 +1,228 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+library(dplyr)
+library(ComplexHeatmap)
+```
+
+```{r}
+outdir <- "/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/4_PlotHeatmap/outdir/"
+
+P1C <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P1C_LR_signif.txt")
+P2C <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P2C_LR_signif.txt")
+P3C <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P3C_LR_signif.txt")
+P4C <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P4C_LR_signif.txt")
+P5C <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P5C_LR_signif.txt")
+
+P1H <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P1H_LR_signif.txt")
+P2H <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P2H_LR_signif.txt")
+P3H <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P3H_LR_signif.txt")
+P4H <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P4H_LR_signif.txt")
+P5H <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P5H_LR_signif.txt")
+```
+
+# Visualisation one - LR pair vs sample, colour by prob (or p-val)
+
+There are duplicates, what to do with the probability? I could pick the top one, or merge them
+
+```{r}
+# select the "interaction_name" and "pval" column, log10 transform, and select the one with the highest log10 probability
+P1C <- mutate(P1C, NegLogP = -(log10(pval + 1e-6)))
+P2C <- mutate(P2C, NegLogP = -(log10(pval + 1e-6)))
+P3C <- mutate(P3C, NegLogP = -(log10(pval + 1e-6)))
+P4C <- mutate(P4C, NegLogP = -(log10(pval + 1e-6)))
+P5C <- mutate(P5C, NegLogP = -(log10(pval + 1e-6)))
+
+P1H <- mutate(P1H, NegLogP = -(log10(pval + 1e-6)))
+P2H <- mutate(P2H, NegLogP = -(log10(pval + 1e-6)))
+P3H <- mutate(P3H, NegLogP = -(log10(pval + 1e-6)))
+P4H <- mutate(P4H, NegLogP = -(log10(pval + 1e-6)))
+P5H <- mutate(P5H, NegLogP = -(log10(pval + 1e-6)))
+```
+
+```{r}
+#Now I'll keep only column "interaction_name" and "NegLogP", and filter redundancy by largest -log10-pval
+FilterList <- function(list, sampleID) {
+  list_filt <- list %>% select(c("interaction_name", "NegLogP")) %>% arrange(-(NegLogP))
+  list_filt <- list_filt[!duplicated(list_filt$interaction_name),]
+  rownames(list_filt) <- list_filt$interaction_name
+  list_filt$interaction_name <- NULL
+  colnames(list_filt) <- c(sampleID)
+  return(list_filt)
+}
+
+P1C_filt <- FilterList(P1C, "P1C")
+P2C_filt <- FilterList(P2C, "P2C")
+P3C_filt <- FilterList(P3C, "P3C")
+P4C_filt <- FilterList(P4C, "P4C")
+P5C_filt <- FilterList(P5C, "P5C")
+
+P1H_filt <- FilterList(P1H, "P1H")
+P2H_filt <- FilterList(P2H, "P2H")
+P3H_filt <- FilterList(P3H, "P3H")
+P4H_filt <- FilterList(P4H, "P4H")
+P5H_filt <- FilterList(P5H, "P5H")
+```
+
+```{r}
+MergeTables <- function(x, y){
+  df <- merge(x, y, by= "row.names", all.x= T, all.y= T)
+  rownames(df) <- df$Row.names
+  df$Row.names <- NULL
+  return(df)
+}
+
+MyMergedTables <- Reduce(MergeTables, list(P1C_filt, P2C_filt, P3C_filt, P4C_filt, P5C_filt,
+                                      P1H_filt, P2H_filt, P3H_filt, P4H_filt, P5H_filt))
+MyMergedTables[is.na(MyMergedTables)] <- 0
+MyMergedTables <- t(MyMergedTables)
+```
+
+There are too many hits to show in the figure. How many of these LR pairs are found in e.g. only 1 sample?
+
+```{r}
+MyMergedTables_binary <- MyMergedTables
+MyMergedTables_binary[MyMergedTables_binary > 0] <- 1
+# keep LR pairs in 3+ samples
+keep3 <- names(which(colSums(MyMergedTables_binary) >= 3))
+MyMergedTables_filt3 <- MyMergedTables[,keep3]
+```
+
+
+```{r}
+annotations <- data.frame(samples = c("P1C", "P2C", "P3C", "P4C", "P5C",
+                                      "P1H", "P2H", "P3H", "P4H", "P5H"),
+                          patient = c("P1", "P2", "P3", "P4", "P5",
+                                      "P1", "P2", "P3", "P4", "P5"),
+                          status = c("cancer", "cancer", "cancer", "cancer", "cancer",
+                                     "healthy", "healthy", "healthy", "healthy", "healthy"),
+                          colours = c("deeppink3", "deeppink3", "deeppink3", "deeppink3", "deeppink3",
+                                     "turquoise3", "turquoise3", "turquoise3", "turquoise3", "turquoise3"))
+
+ann_colors = list(
+    status = c(cancer = "deeppink3",
+              healthy = "turquoise3"))
+
+ann_clust_rows = rowAnnotation(status = annotations$status,
+                              col = list(status = ann_colors$status),
+                              #simple_anno_size = unit(1, "cm"), #height of annotation bar
+                              show_legend = FALSE,
+                              show_annotation_name = FALSE)
+
+ann_clust = HeatmapAnnotation(status = annotations$status,
+                              col = list(status = ann_colors$status),
+                              #simple_anno_size = unit(1, "cm"), #height of annotation bar
+                              show_legend = FALSE,
+                              show_annotation_name = FALSE)
+
+#Heatmap(MyMergedTables, cluster_rows = FALSE, left_annotation = ann_clust)
+```
+
+
+W 369.24 pt (5) x H 181.3889 pt (2.5in)
+```{r}
+CellPalette = circlize::colorRamp2(c(0, min(as.vector(MyMergedTables_filt3)[as.vector(MyMergedTables_filt3) > 0]), 6), c("white", "grey75", "grey50"))
+#dend1 = cluster_within_group(t(MyMergedTables), annotations$status)
+
+ht_maxOutOutliers_fullscale <- Heatmap(MyMergedTables_filt3,
+        #cluster_rows = dend1,
+        cluster_columns = TRUE,
+        cluster_rows = TRUE,
+        show_column_names = TRUE,
+        col = CellPalette,
+        row_names_gp = gpar(fontsize = 8),
+        column_names_rot = 45,
+        column_names_gp = gpar(fontsize = 4 ),
+        border_gp = gpar(col = "black", lty = 1),
+        #row_order = overlapmarkers, column_order = rownames(myorder),
+        left_annotation = ann_clust_rows,
+        # legend
+         heatmap_legend_param = list(title = NULL,
+                                     labels_gp = gpar(fontsize = 8),
+                                     direction = "horizontal", nrow=1),
+        # split up clusters (cols) and additional genes (rows)
+        row_split = annotations$status, #row_split = 2,
+        column_title = NULL,
+        column_gap = unit(0.5, "mm"),
+        use_raster = TRUE, raster_quality = 1,
+        width = unit(10, "cm"), #based on current figure
+        height = unit(3.5, "cm"), #based on current figure
+        )
+
+pdf(paste0(outdir, "LRHeatmap_filt3.pdf"))
+draw(ht_maxOutOutliers_fullscale, annotation_legend_side = "bottom", heatmap_legend_side = "bottom")
+dev.off()
+```
+
+# same thing not clustered by row
+
+```{r}
+ht_maxOutOutliers_fullscale <- Heatmap(MyMergedTables_filt3,
+        #cluster_rows = dend1,
+        cluster_columns = TRUE,
+        cluster_rows = FALSE,
+        show_column_names = TRUE,
+        col = CellPalette,
+        row_names_gp = gpar(fontsize = 8),
+        column_names_rot = 45,
+        column_names_gp = gpar(fontsize = 4 ),
+        border_gp = gpar(col = "black", lty = 1),
+        #row_order = overlapmarkers, column_order = rownames(myorder),
+        left_annotation = ann_clust_rows,
+        # legend
+         heatmap_legend_param = list(title = NULL,
+                                     labels_gp = gpar(fontsize = 8),
+                                     direction = "horizontal", nrow=1),
+        # split up clusters (cols) and additional genes (rows)
+        row_split = annotations$status, #row_split = 2,
+        column_title = NULL,
+        column_gap = unit(0.5, "mm"),
+        use_raster = TRUE, raster_quality = 1,
+        width = unit(12, "cm"), #based on current figure
+        height = unit(3.5, "cm"), #based on current figure
+        )
+
+pdf(paste0(outdir, "LRHeatmap_notClust_filt3.pdf"))
+draw(ht_maxOutOutliers_fullscale, annotation_legend_side = "bottom", heatmap_legend_side = "bottom")
+dev.off()
+```
+
+Same thing but wider
+
+```{r}
+CellPalette = circlize::colorRamp2(c(0, min(as.vector(MyMergedTables_filt3)[as.vector(MyMergedTables_filt3) > 0]), 6), c("white", "grey75", "grey50"))
+
+ht_maxOutOutliers_fullscale <- Heatmap(MyMergedTables_filt3,
+        #cluster_rows = dend1,
+        cluster_columns = TRUE,
+        cluster_rows = FALSE,
+        show_column_names = TRUE,
+        col = CellPalette,
+        row_names_gp = gpar(fontsize = 8),
+        #column_names_rot = 45,
+        column_names_gp = gpar(fontsize = 5 ),
+        border_gp = gpar(col = "black", lty = 1),
+        #row_order = overlapmarkers, column_order = rownames(myorder),
+        left_annotation = ann_clust_rows,
+        # legend
+         heatmap_legend_param = list(title = NULL,
+                                     labels_gp = gpar(fontsize = 8),
+                                     direction = "horizontal", nrow=1),
+        # split up clusters (cols) and additional genes (rows)
+        row_split = annotations$status, #row_split = 2,
+        column_title = NULL,
+        column_gap = unit(0.5, "mm"),
+        use_raster = TRUE, raster_quality = 1,
+        width = unit(19, "cm"), #based on current figure
+        height = unit(3.5, "cm"), #based on current figure
+        )
+
+pdf(paste0(outdir, "LRHeatmap_notClust_filt3_wider.pdf"), width = 20)
+draw(ht_maxOutOutliers_fullscale, annotation_legend_side = "bottom", heatmap_legend_side = "bottom")
+dev.off()
+```

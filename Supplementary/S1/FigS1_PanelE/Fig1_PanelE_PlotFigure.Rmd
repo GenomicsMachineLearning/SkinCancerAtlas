@@ -1,0 +1,52 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(ggplot2)
+```
+
+```{r}
+scc <- readRDS("/path/to/SCC_scRNASeq.RDS")
+outdir <- "/path/to/outdir/"
+```
+
+```{r}
+palette_celltypes <- c(
+  `Endothelial` = "orange",
+  `Fibroblast` = "chartreuse4",
+  `Melanocyte` = "dodgerblue3",
+  `Pilosebaceous` = "saddlebrown",
+  `B + PDC` = "slateblue3",
+  `Myeloid` = "yellow2",
+  `NK + T` = "olivedrab3",
+  `KC Basal` = "plum3",
+  `KC Cycling` = "pink1",
+  `KC Other` = "indianred3",
+  `KC Differentiating` = "hotpink1")
+```
+
+```{r}
+meta$sample_ident <- factor(scc$sample_ident, levels = c("P1_N", "P2_N", "P3_N", "P4_N", "P5_N", "P1_SCC", "P2_SCC1", "P2_SCC2", "P3_IEC", "P4_SCC", "P5_SCC_BCC"))
+
+
+ggplot(meta, aes(x = sample_ident)) +
+  geom_bar(aes(fill=Level1), position="fill") + 
+  scale_fill_manual(values = palette_celltypes) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  theme(axis.text=element_text(size = 3), axis.title=element_blank()) +
+  NoLegend()
+ggsave(filename = paste0(outdir, "Samplewise_orderByCancer_nolegend.pdf"), width = 2.39, height = 1.66)
+
+ggplot(meta, aes(x = sample_ident)) +
+  geom_bar(aes(fill=Level1), position="fill") + 
+  scale_fill_manual(values = palette_celltypes) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  theme(axis.text=element_text(size = 3), axis.title=element_blank())
+ggsave(filename = paste0(outdir, "Samplewise_orderByCancer_legend.pdf"))
+```
+

@@ -1,0 +1,203 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+library(circlize)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+sigInteractions <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/2_RunCellChat/P1_cancer/AllPredictedInteractions_LR.txt", row.names = 1)
+sampleID <- "P1C"
+
+outdir <- "/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/7_circos/2_MakeCircos/outdir/"
+```
+
+
+```{r}
+
+
+sigInteractions <- sigInteractions %>% filter(pval <= 0.05)
+sigCounts <- sigInteractions[,1:2]
+colnames(sigCounts) <- c("SOURCE", "TARGET")
+#sigCounts <- as.data.frame(sigCounts %>% group_by(source, target) %>% tally())
+
+# save just the significant hits
+write.table(sigInteractions, file = paste0(outdir, sampleID, "_significantHits.txt"), sep = "\t", quote = FALSE)
+```
+
+
+# remove double spaces
+
+```{r}
+sigCounts$SOURCE <- stringr::str_squish(sigCounts$SOURCE)
+sigCounts$TARGET <- stringr::str_squish(sigCounts$TARGET)
+```
+
+# simplify the annotations
+
+```{r}
+sigCounts$source_simp <- gsub("KC Basal", "KC", sigCounts$SOURCE) %>%
+  gsub("KC Cornified", "KC", .) %>%
+  gsub("KC Dysplastic", "KC", .) %>%
+  gsub("Ambiguous", "Ambiguous", .) %>%
+  gsub("KC Differentiating", "KC", .) %>%
+  gsub("KC Hair", "KC", .) %>%
+  gsub("Melanocytes", "Melanocyte", .) %>%
+  gsub("T Cell", "Immune", .) %>%
+  gsub("Endothelial Cell", "Endothelial", .) %>%
+  gsub("NK", "Immune", .) %>%
+  gsub("LC", "Immune", .) %>%
+  gsub("Fibroblast", "Fibroblast", .) %>%
+  gsub("Monocytes", "Immune", .) %>%
+  gsub("Macrophage", "Immune", .) %>%
+  gsub("B Cell", "Immune", .) %>%
+  gsub("DC", "Immune", .) %>%
+  gsub("KC IFN", "KC", .)
+```
+
+```{r}
+sigCounts$target_simp <- gsub("KC Basal", "KC", sigCounts$TARGET) %>%
+  gsub("KC Cornified", "KC", .) %>%
+  gsub("KC Dysplastic", "KC", .) %>%
+  gsub("Ambiguous", "Ambiguous", .) %>%
+  gsub("KC Differentiating", "KC", .) %>%
+  gsub("KC Hair", "KC", .) %>%
+  gsub("Melanocytes", "Melanocyte", .) %>%
+  gsub("T Cell", "Immune", .) %>%
+  gsub("Endothelial Cell", "Endothelial", .) %>%
+  gsub("NK", "Immune", .) %>%
+  gsub("LC", "Immune", .) %>%
+  gsub("Fibroblast", "Fibroblast", .) %>%
+  gsub("Monocytes", "Immune", .) %>%
+  gsub("Macrophage", "Immune", .) %>%
+  gsub("B Cell", "Immune", .) %>%
+  gsub("DC", "Immune", .) %>%
+  gsub("KC IFN", "KC", .)
+```
+
+# aggregate and build matrix
+
+```{r}
+sigCounts_2 <- sigCounts[,3:4]
+sigCounts_2 <- as.data.frame(sigCounts_2 %>% group_by(source_simp, target_simp) %>% tally())
+sigCounts_2$source_simp <- paste0(sigCounts_2$source_simp, "_L")
+sigCounts_2$target_simp <- paste0(sigCounts_2$target_simp, "_R")
+sigCounts_2_simp_m <- reshape(sigCounts_2, idvar = "source_simp", timevar = "target_simp", v.names = "n", direction = "wide")
+rownames(sigCounts_2_simp_m) <- sigCounts_2_simp_m$source_simp
+sigCounts_2_simp_m$source_simp <- NULL
+colnames(sigCounts_2_simp_m) <- gsub("n\\.", "", colnames(sigCounts_2_simp_m))
+sigCounts_2_simp_m[is.na(sigCounts_2_simp_m)] <- 0
+sigCounts_2_simp_m <- as.matrix(sigCounts_2_simp_m)
+```
+
+# Generate colour palette for plotting
+
+```{r}
+palette = c(KC_L = "deeppink",
+            KC_R = "deeppink",
+            Ambiguous_L = "grey50",
+            Ambiguous_R = "grey50",
+            Melanocyte_L = "#8b471f",
+            Melanocyte_R = "#8b471f",
+            Fibroblast_L = "#458b41",
+            Fibroblast_R = "#458b41",
+            Endothelial_L = "#f8a41e",
+            Endothelial_R = "#f8a41e",
+            Immune_L = "yellowgreen",
+            Immune_R = "yellowgreen")
+```
+
+```{r}
+# initialising parameters
+pdf(file = paste0(outdir, sampleID, "_sigCounts_circos.pdf"), width = 5, height = 5)
+
+circos.par(start.degree = 270, #262.5,
+           track.margin = c(mm_h(2), 0),
+           track.height = mm_h(8))
+#removed:
+#gap.after = c(rep(5, nrow(sigCounts_2_simp_m)-1), 15, rep(5, ncol(sigCounts_2_simp_m)-1), 15),
+
+myOrder <- rownames(sigCounts_2_simp_m)[order(rowSums(sigCounts_2_simp_m))]
+receptors_in_ligands <- myOrder[gsub("_L", "_R", myOrder) %in% colnames(sigCounts_2_simp_m)] %>% gsub("_L", "_R", .)
+unique_receptors <- setdiff(colnames(sigCounts_2_simp_m), gsub("_L", "_R", rownames(sigCounts_2_simp_m)))
+unique_receptors <- unique_receptors[order(colSums(sigCounts_2_simp_m[,unique_receptors,drop = FALSE]))]
+receptors <- rev(c(unique_receptors, receptors_in_ligands))
+myOrder <- c(myOrder, receptors)
+
+# plot chord diagram
+chordDiagram(sigCounts_2_simp_m,
+             # colours
+             transparency = 0.5,
+             grid.col = palette,
+             
+             # manual order of sectors
+            #order = c("Pilosebaceous_L","Melanocyte_L", "KC_L","Fibroblast_L","Endothelial_L","Immune_L",
+            #         "Immune_R", "Endothelial_R", "Fibroblast_R","KC_R", "Melanocyte_R","Pilosebaceous_R"),
+            order = myOrder,
+             # plot only grid (no labels, no axis)
+             annotationTrack = c("grid"), 
+             # annotationTrack = NULL,
+             preAllocateTracks = 1, #preAllocateTracks = 2,
+             
+             # adjust grid width and spacing
+             annotationTrackHeight = c(0.08, 0.00),
+             big.gap = 15,
+             small.gap = nrow(sigCounts_2_simp_m)-1
+             )
+             
+# sector labels: ligand
+highlight.sector(rownames(sigCounts_2_simp_m),
+                 track.index = 1, col = "grey80", 
+                 text = "ligands", cex = 0.8, text.col = "black",
+                 niceFacing = TRUE, font = TRUE)
+
+# sector labels: receptor
+highlight.sector(colnames(sigCounts_2_simp_m),
+                 track.index = 1, col = "grey80", 
+                 text = "receptors", cex = 0.8, text.col = "black",
+                 niceFacing = TRUE, font = TRUE)
+
+# add labels and axis manually
+
+# circos.trackPlotRegion(track.index = 1, panel.fun = function(x, y) {
+#   xlim = get.cell.meta.data("xlim")
+#   ylim = get.cell.meta.data("ylim")
+#   sector.name = get.cell.meta.data("sector.index")
+#   
+#   #print labels 
+#   circos.text(mean(xlim), ylim[1] + 2.5, sector.name, 
+#               facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=0.6)
+#   
+#   #print axis
+#   #circos.axis(h = "top", labels.cex = 0.5, major.tick.percentage = 0.2, 
+#   #              sector.index = sector.name, track.index = 2)
+# }, bg.border = NA)
+
+
+
+for(si in get.all.sector.index()) {
+  xlim = get.cell.meta.data("xlim", sector.index = si, track.index = 2)
+  ylim = get.cell.meta.data("ylim", sector.index = si, track.index = 2)
+  si2 <- stringr::word(si, sep = "_") %>%
+    stringr::str_extract_all(., pattern = "[A-Z]") %>%
+    unlist() %>%
+    paste0(collapse = "") #
+  circos.text(mean(xlim), mean(ylim), si2, sector.index = si, track.index = 2, 
+              facing = "bending.inside", niceFacing = TRUE, col = "white", cex = 1)
+}
+
+dev.off()
+
+circos.clear()
+
+```
+
+
+
+

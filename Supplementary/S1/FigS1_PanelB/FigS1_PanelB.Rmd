@@ -1,0 +1,57 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+outdir <- "/path/to/outdir/"
+df <- readRDS("/path/to/SlimSCC_removeScale_NormalisedRNAAssay.RDS") #the same thing but on HD (quicker to load)
+
+Idents(df) <- "pre"
+DefaultAssay(df) <- "RNA"
+```
+
+# Plot 1: Normal vs Cancer UMAP
+
+```{r}
+palette_cancer <- c(`Cancer` = "deeppink3",
+                    `Normal` = "turquoise3")
+DimPlot(df, group.by = "orig_ident", cols = palette_cancer)
+```
+save the plot
+
+```{r}
+DimPlot(df, cols = palette_cancer, group.by = "orig_ident", pt.size = 0.05) +
+    coord_fixed() + NoLegend()
+ggsave(filename = paste0(outdir, "ClusterPlot_CancerVSNormal_noLegend.pdf"), width = 3, height = 3)
+
+DimPlot(df, cols = palette_cancer, group.by = "orig_ident", pt.size = 0.01) +
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        plot.title = element_blank()) +
+    coord_fixed() + NoLegend()
+ggsave(filename = paste0(outdir, "ClusterPlot_CancerVSNormal_noText.pdf"), width = 3, height = 3)
+
+DimPlot(df, cols = palette_cancer, group.by = "orig_ident", pt.size = 0.05) +
+    coord_fixed()
+ggsave(filename = paste0(outdir, "ClusterPlot_CancerVSNormal_wLegend.pdf.pdf"), width = 3, height = 3)
+```
+
+```{r}
+DimPlot(df, cols = palette_cancer, group.by = "orig_ident", pt.size = 0.0000001) +
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        plot.title = element_blank()) +
+    coord_fixed() + NoLegend()
+ggsave(filename = paste0(outdir, "ClusterPlot_CancerVSNormal_noText_smlPts.pdf"), width = 7, height = 7)
+```

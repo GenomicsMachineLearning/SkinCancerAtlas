@@ -1,0 +1,37 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+outdir <- "/path/to/outdir/"
+
+indir <- "/path/to/indir/"
+```
+
+```{r}
+filenames <- list.files(path = indir, pattern = "patientwise_healthVStumour_SigMarkers_patient*", full.names=TRUE)
+filenames <- filenames[grep("txt", filenames)]
+filenames <- filenames[file.info(filenames)$size > 1] #remove empty files (size = 1)
+cellnames <- gsub(".*patient_", "", basename(filenames)) %>% {gsub(".txt", "", .)} %>% {gsub(" ", "_", .)} %>% {gsub("\\+_", "", .)} %>% {gsub("\\(", "_", .)} %>% {gsub("\\)", "", .)}
+# load all the data
+
+loadData <- function(myFile) {
+  clusterID <- gsub(".*patient_", "", basename(myFile)) %>% {gsub(".txt", "", .)} %>% {gsub(" ", "_", .)} %>% {gsub("\\+_", "", .)} %>% {gsub("\\(", "_", .)} %>% {gsub("\\)", "", .)}
+  read.delim(myFile, row.names = 1) %>% mutate(., cluststate = paste0(clusterID, "_", cluster)) %>% filter(p_val_adj <= 0.05)
+}
+
+all_data <- lapply(filenames,loadData)
+all_data <- do.call("rbind", all_data)
+
+# modify so it matches the format for the R script
+colnames(all_data) <- colnames(all_data) %>% {gsub("cluster", "status", .)} %>% {gsub("cluststate", "cluster", .)}
+```
+
+```{r}
+write.table(all_data, file = paste0(outdir, "patientwise_allSigMarkers_mergedList.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```

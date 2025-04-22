@@ -1,0 +1,56 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+outdir <- "/path/to/outdir/"
+df <- readRDS("/path/to/SlimSCC_removeScale_NormalisedRNAAssay.RDS") #the same thing but on HD (quicker to load)
+Idents(df) <- "pre"
+DefaultAssay(df) <- "RNA"
+```
+
+```{r}
+DimPlot(df, group.by = "pre")
+DimPlot(df, group.by = "pre", split.by = "orig_ident")
+DimPlot(df, group.by = "pre", split.by = "type_ident")
+```
+
+# Analysis 1: all cells, healthy vs. tumour
+
+```{r}
+Idents(df) <- "orig_ident"
+
+markers <- FindAllMarkers(df, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+
+sig_markers <- markers %>%
+  filter(p_val_adj <= 0.05)
+
+top10 <- markers %>%
+  filter(p_val_adj <= 0.05) %>%
+  group_by(cluster) %>%
+  arrange(-(avg_log2FC)) %>%
+  dplyr::slice(1:10, with_ties = FALSE)
+
+top100 <- markers %>% filter(p_val_adj <= 0.05) %>%
+  group_by(cluster) %>%
+  arrange(-(avg_log2FC)) %>%
+  dplyr::slice(1:100, with_ties = FALSE)
+
+write.table(sig_markers, file = paste0(outdir, "allcells_healthVStumour_SigMarkers.txt"), sep = "\t", quote = FALSE, col.names = NA)
+
+write.table(top10, file = paste0(outdir, "allcells_healthVStumour_top10.txt"), sep = "\t", quote = FALSE, col.names = NA)
+
+write.table(top100, file = paste0(outdir, "allcells_healthVStumour_top100.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+
+```{r}
+DotPlot(df, features = c(top10$features))
+```
+

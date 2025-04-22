@@ -1,0 +1,46 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+library(Seurat)
+library(CellChat)
+library(patchwork)
+options(stringsAsFactors = FALSE)
+library(NMF)
+library(circlize)
+library(ComplexHeatmap)
+library(ggalluvial)
+```
+
+```{r}
+outdir <- "/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/6_RunGO/1_GetCellchatUniverse/outdir/"
+
+df <- readRDS("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/12_PostPrakrithiMakeSeurat/outdir/PreHarmonyIntegratedObject_SCCBCC_withFinalUMAP+Metadata.RDS")
+```
+
+## Load data
+
+I used the counts matrix to run CellChat:
+
+```{r}
+counts <- df[["RNA"]]$data
+```
+
+# Set the ligand-receptor interaction database
+
+I used the human CellChat database:
+
+```{r}
+CellChatDB <- CellChatDB.human # use CellChatDB.mouse if running on mouse data
+```
+
+# which genes in my count matrix are also in the CellChat database?
+```{r}
+hits <- as.data.frame(rownames(counts)[rownames(counts) %in% CellChatDB$geneInfo$Symbol])
+colnames(hits) <- "universe_genes"
+write.table(hits, file = paste0(outdir, "geneuniverse.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```

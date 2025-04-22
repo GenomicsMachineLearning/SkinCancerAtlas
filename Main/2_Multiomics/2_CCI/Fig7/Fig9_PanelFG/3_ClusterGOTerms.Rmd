@@ -1,0 +1,208 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This code continues on from script `/Fig7_IL34_CSF1R/Fig7_DataAnalysis/Visium/2_RunGO.Rmd`
+
+```{r}
+# load packages
+library(presto)
+library(clusterProfiler)
+library(ComplexHeatmap)
+library(dplyr)
+library(org.Mm.eg.db)
+library(tidyverse)
+library(ggpubr)
+library(stringr)
+library(aplot)
+library(GOSemSim)
+library(patchwork)
+```
+
+```{r}
+outdir <- "/path/to/outdir/"
+
+ck_filt_simple <- readRDS("/path/to/binary_GOFiltSimp.RDS")
+
+sampleID <- "binary"
+```
+
+# Remove redundancy
+
+```{r}
+# convert the genes into a table
+genehits <- ck_filt_simple@compareClusterResult[,c("ID", "Cluster", "Description", "p.adjust", "geneID")]
+# remove "Descriptions" where the genes are identical to another Description (keep the highest p.adj)
+genehits <- genehits %>% filter(Cluster == "mel_up")
+genehits <- genehits %>% arrange(p.adjust)
+genehits <- genehits[!duplicated(genehits$geneID),]
+```
+
+# Set up GoSemSim
+
+```{r}
+hsGO <- godata('org.Hs.eg.db', ont="BP")
+```
+
+```{r}
+similarity <- mgoSim(genehits$ID, genehits$ID, semData=hsGO, measure="Wang", combine=NULL)
+write.table(similarity, file = paste0(outdir, "similarity_matrix.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+
+```{r}
+# plot as a heatmap and extract dendrogram
+hm <- Heatmap(similarity, row_km = 3)
+hm <- draw(hm)
+r.dend <- row_dend(hm)  #Extract row dendrogram
+rcl.list <- row_order(hm)  #Extract clusters (output is a list)
+lapply(rcl.list, function(x) length(x))
+```
+```{r}
+#make into a table
+cl3 <- rownames(similarity)[rcl.list$`3`]
+cl2 <- rownames(similarity)[rcl.list$`2`]
+cl1 <- rownames(similarity)[rcl.list$`1`]
+
+clusters <- data.frame(GO = c(cl1, cl2, cl3),
+                       cluster = c(rep("cl1", length(cl1)),
+                                   rep("cl2", length(cl2)),
+                                   rep("cl3", length(cl3))
+                                   ))
+rownames(clusters) <- clusters$GO
+clusters$GO <- NULL
+
+# merge
+genehits2 <- genehits
+rownames(genehits2) <- genehits2$ID
+clusters <- clusters[rownames(genehits2), , drop = FALSE]
+genehits2 <- cbind(genehits2, clusters)
+```
+
+# MAKE A HEATMAP TO SHOW GO TERM OVERLAP
+
+
+```{r}
+# Now get directions
+genehits2 <- mutate(genehits2, direction = gsub(".*_","",Cluster))
+genehits2 <- mutate(genehits2, direction2 = ifelse(direction == "up", 1, -1))
+genehits2 <- mutate(genehits2, padjdir = -log10(p.adjust + 1e-6) * sign(direction2))
+# split the genes into separate rows
+genehits2 <- genehits2 %>% separate_rows(geneID, sep = "/")
+genehits2 <- unique(genehits2)
+# add in the ID and the GO term
+genehits2 <- mutate(genehits2, ID_desc = paste0(ID, ": ", Description))
+```
+
+# split each heatmap into clusters
+
+```{r}
+hits_cl1 <- genehits2 %>% filter(cluster == "cl1") # immune
+hits_cl2 <- genehits2 %>% filter(cluster == "cl2") # fatty acid
+hits_cl3 <- genehits2 %>% filter(cluster == "cl3") # skin
+```
+
+# make binary
+
+```{r}
+# cluster 1
+mat_cl1 <- reshape2::acast(hits_cl1, ID_desc~geneID, value.var = "padjdir")
+mat_cl1[is.na(mat_cl1)] <- 0
+bin_cl1 <- mat_cl1
+bin_cl1[bin_cl1 < 0] <- -1
+bin_cl1[bin_cl1 > 0] <- 1
+
+# cluster 2
+mat_cl2 <- reshape2::acast(hits_cl2, ID_desc~geneID, value.var = "padjdir")
+mat_cl2[is.na(mat_cl2)] <- 0
+bin_cl2 <- mat_cl2
+bin_cl2[bin_cl2 < 0] <- -1
+bin_cl2[bin_cl2 > 0] <- 1
+
+# cluster 3
+mat_cl3 <- reshape2::acast(hits_cl3, ID_desc~geneID, value.var = "padjdir")
+mat_cl3[is.na(mat_cl3)] <- 0
+bin_cl3 <- mat_cl3
+bin_cl3[bin_cl3 < 0] <- -1
+bin_cl3[bin_cl3 > 0] <- 1
+```
+
+```{r}
+col_fun_bin = circlize::colorRamp2(c(-1, 0, 1), c("blue", "white", "red2"))
+```
+
+```{r}
+myheat <- Heatmap(mat_cl1,
+        cluster_rows = TRUE,
+        cluster_columns = TRUE,
+        # dendrogram height
+        row_dend_width = unit(2.5, "mm"),
+        column_dend_height = unit(2.5, "mm"),
+        row_title = NULL,
+        border = TRUE,
+        row_names_gp = gpar(fontsize = 7),
+        column_names_gp = gpar(fontsize = 7),
+        column_names_rot = 90,
+        row_names_side = "right",
+        column_names_side = "bottom",
+        col = col_fun_bin,
+        # Overall plotting
+        use_raster = TRUE, raster_quality = 1,
+        width = ncol(mat_cl1)*unit(2.5, "mm"),
+        height = nrow(mat_cl1)*unit(2.5, "mm"))
+
+pdf(paste0(outdir, "heatmap", "Cluster1", ".pdf"), height = 8, width = 12)
+draw(myheat, annotation_legend_side = "bottom", heatmap_legend_side = "bottom")
+dev.off()
+```
+
+```{r}
+myheat <- Heatmap(mat_cl2,
+        cluster_rows = TRUE,
+        cluster_columns = TRUE,
+        # dendrogram height
+        row_dend_width = unit(2.5, "mm"),
+        column_dend_height = unit(2.5, "mm"),
+        row_title = NULL,
+        border = TRUE,
+        row_names_gp = gpar(fontsize = 7),
+        column_names_gp = gpar(fontsize = 7),
+        column_names_rot = 90,
+        row_names_side = "right",
+        column_names_side = "bottom",
+        col = col_fun_bin,
+        # Overall plotting
+        use_raster = TRUE, raster_quality = 1,
+        width = ncol(mat_cl2)*unit(2.5, "mm"),
+        height = nrow(mat_cl2)*unit(2.5, "mm"))
+
+pdf(paste0(outdir, "heatmap", "Cluster2", ".pdf"), height = 8, width = 12)
+draw(myheat, annotation_legend_side = "bottom", heatmap_legend_side = "bottom")
+dev.off()
+```
+
+```{r}
+myheat <- Heatmap(mat_cl3,
+        cluster_rows = TRUE,
+        cluster_columns = TRUE,
+        # dendrogram height
+        row_dend_width = unit(2.5, "mm"),
+        column_dend_height = unit(2.5, "mm"),
+        row_title = NULL,
+        border = TRUE,
+        row_names_gp = gpar(fontsize = 7),
+        column_names_gp = gpar(fontsize = 7),
+        column_names_rot = 90,
+        row_names_side = "right",
+        column_names_side = "bottom",
+        col = col_fun_bin,
+        # Overall plotting
+        use_raster = TRUE, raster_quality = 1,
+        width = ncol(mat_cl3)*unit(2.5, "mm"),
+        height = nrow(mat_cl3)*unit(2.5, "mm"))
+
+pdf(paste0(outdir, "heatmap", "Cluster3", ".pdf"), height = 8, width = 12)
+draw(myheat, annotation_legend_side = "bottom", heatmap_legend_side = "bottom")
+dev.off()
+```
+

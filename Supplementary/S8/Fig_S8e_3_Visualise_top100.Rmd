@@ -1,0 +1,134 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+# load packages
+library(presto)
+library(clusterProfiler)
+library(ComplexHeatmap)
+library(dplyr)
+library(org.Mm.eg.db)
+library(tidyverse)
+library(ggpubr)
+library(stringr)
+library(aplot)
+library(patchwork)
+```
+
+```{r}
+outdir <- "/Volumes/SciDrive/Archive/SCC/1_sandbox/20220722_GeoMxNanostring/1_GeneOntology/3_MakeGOPretty/outdir_top100genes/"
+
+ck_filt_simple <- readRDS("/Volumes/SciDrive/Archive/SCC/1_sandbox/20220722_GeoMxNanostring/1_GeneOntology/2_GO/outdir_top100/RNA_GOFiltSimp.RDS")
+
+DE <- read.delim("/Volumes/SciDrive/Archive/SCC/1_sandbox/20220722_GeoMxNanostring/1_GeneOntology/1_processGeneLists/outdir/DEgenes_top100.txt")
+
+sampleID <- "top100"
+```
+
+# Make dotplots
+
+```{r}
+MakeDotplots <- function(n, myheight, mywidth) {
+  # where n = number of genes to pick
+  analysisID <- paste0("top", n)
+  
+  ck <- ck_filt_simple@compareClusterResult
+  ck <- mutate(ck, ID_Desc = paste0(ID, ": ", Description))
+
+  # get the top N of each group
+  topN <- ck %>%
+    group_by(Cluster) %>%
+    arrange(p.adjust) %>%
+    dplyr::slice(1:n)
+  topNuniq <- unique(topN$ID_Desc)
+  topN_allhits <- ck[which(ck$ID_Desc %in% topNuniq),]
+  
+  # prepare the data table
+  table <- topN_allhits[,c(1,3,4,5,7,11)]
+
+  # add in the various ratios to control dot size
+  table <- tidyr::separate(data = table, col = GeneRatio, into = c("k_GOIinSet", "n_GOI"), sep = "\\/")
+  table <- tidyr::separate(data = table, col = BgRatio, into = c("M_Set", "N_background"), sep = "\\/")
+  ## make numeric
+  table$k_GOIinSet <- as.numeric(table$k_GOIinSet)
+  table$n_GOI <- as.numeric(table$n_GOI)
+  table$M_Set <- as.numeric(table$M_Set)
+  table$N_background <- as.numeric(table$N_background)  
+  ## make a ratio
+  table <- mutate(table, GeneRatio = k_GOIinSet / n_GOI)
+  table <- mutate(table, Ratio_kM = k_GOIinSet / M_Set)
+  
+  # for the sake of visualisation, convert p-values to log10 and invert the numbers of the downregulated hits
+  table <- mutate(table, direction = gsub(".*_","",Cluster))
+  table <- mutate(table, direction2 = ifelse(direction == "up", 1, -1))
+  table <- mutate(table, padjdir = -log10(p.adjust + 1e-6))
+
+  # simplify the "traj_0_" cluster names to just the number to aid with the ordering/legend
+  table <- mutate(table, time = gsub("_.*", "", table$Cluster))
+  table$time <- as.factor(table$time) # convert to factor data type
+  #levels(table$time) <- sort(as.numeric(levels(table$time)))
+  
+  # work out which genes to plot and order them by time ID
+  markers <- table$ID_Desc %>% unique()
+  table$ID_Desc <- factor(table$ID_Desc, levels = rev(topNuniq))
+
+  ## size is gene ratio, colour is up/downreg - this is the best one
+  dotplot_grp_topN <- table %>% filter(ID_Desc %in% markers) %>% 
+    ggplot(aes(x=time, y = ID_Desc, color = padjdir, size = GeneRatio)) + 
+    geom_point() +
+    scale_color_gradientn(colours = c("yellow", "orange", "red"),
+                          values = scales::rescale(c(0, max(table$padjdir)/2, max(table$padjdir)))) +
+    scale_y_discrete(position = "right", labels = function(x) str_trunc(x, width = 80, side = "center")) +
+    theme_light(base_size = 10)
+  
+  pdf(paste0(outdir, sampleID, "_dotplot_generatio+pval_", analysisID, ".pdf"), width = mywidth, height = myheight)
+  #labels + dotplot_grp + plot_layout(ncol = 1, heights = c(0.9, 20))
+  print(dotplot_grp_topN)
+  dev.off()
+}
+```
+
+```{r}
+# nTerms, height, width
+MakeDotplots(5, 3, 6)
+MakeDotplots(10, 5, 6)
+MakeDotplots(20, 6.5, 6)
+```
+# MAKE A HEATMAP TO SHOW GO TERM OVERLAP
+
+```{r}
+# convert the genes into a table
+genehits <- ck_filt_simple@compareClusterResult[,c("Cluster", "Description", "p.adjust", "geneID")]
+genehits <- mutate(genehits, direction = gsub(".*_","",Cluster))
+genehits <- mutate(genehits, direction2 = ifelse(direction == "up", 1, -1))
+genehits <- mutate(genehits, padjdir = -log10(p.adjust + 1e-6))
+genehits$time <- gsub("_.*", "", genehits$Cluster)
+# split the genes into separate rows
+genehits <- genehits %>% separate_rows(geneID)
+
+PlotGOOverlap <- function(timepoint) {
+  genehits_time <- genehits[genehits$time == timepoint,]
+  my_matrix <- reshape2::acast(genehits_time, Description~geneID, value.var = "padjdir")
+  my_matrix[is.na(my_matrix)] <- 0
+  # plot the heatmap
+  ## it'll break if the minimum or maximum is zero so code so it can't happen
+  minval <- min(min(my_matrix), -0.01) #whatever is smaller, the min-val or -0.01
+  maxval <- max(max(my_matrix), 0.01) #whatever is smaller, the min-val or -0.01
+  col_fun = circlize::colorRamp2(c(minval, 0, maxval), c("blue", "white", "red"))
+  ht <- ComplexHeatmap::Heatmap(my_matrix,
+                                row_names_gp = gpar(fontsize = 7),
+                                column_names_gp = gpar(fontsize = 7),
+                                rect_gp = gpar(col = "black", lwd = 0.1),
+                                border_gp = gpar(col = "black", lty = 1),
+                                use_raster = TRUE, raster_quality = 1,
+                                col = col_fun)
+  pdf(paste0(outdir, sampleID, "_", timepoint, "_bestLigands_nichenet_GO.pdf"))
+  draw(ht, heatmap_legend_side = "bottom")
+  dev.off()
+}
+
+lapply(unique(genehits$time), PlotGOOverlap)
+```
+

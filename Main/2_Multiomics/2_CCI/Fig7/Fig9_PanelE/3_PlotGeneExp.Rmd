@@ -1,0 +1,217 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(ComplexHeatmap)
+library(ggplot2)
+library(dplyr)
+library(Seurat)
+```
+
+```{r}
+outdir <- "/path/to/outdir/"
+
+params <- read.delim("/path/to/plotting_params.txt", row.names = 1) #plotting parameters
+
+# load the Seurat objects for the DE analysis
+Mela <- readRDS("/path/to/Visium_Mela_inte.rds")
+DefaultAssay(Mela) <- "SCT"
+keep <- rownames(Mela[[]] %>% filter(sub == "48974"))
+Mela_sub <- subset(Mela, cells = keep)
+Mela_sub@images$slice1.1 <- NULL
+Mela_sub@images$slice1.2 <- NULL
+Mela_sub@images$slice1.3 <- NULL
+```
+
+```{r}
+maxval_IL34 <- max(Mela_sub@assays$SCT@data["IL34",])
+maxval_CSF1R <- max(Mela_sub@assays$SCT@data["CSF1R",])
+
+SpatialFeaturePlot(Mela, features = "IL34", images = params["mel_48974","slice"], pt.size.factor = params["mel_48974","dotsize"]) +
+  theme(aspect.ratio = params["mel_48974","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval_IL34), breaks = c(0, maxval_IL34/4, maxval_IL34/2, (maxval_IL34/4)*3, maxval_IL34), colours = c("grey80", "lightskyblue", "deepskyblue", "dodgerblue", "navyblue"))
+  ggsave(filename = paste0(outdir, "IL34", "_mel_48974", ".pdf"), width = 5)
+
+SpatialFeaturePlot(Mela, features = "CSF1R", images = params["mel_48974","slice"], pt.size.factor = params["mel_48974","dotsize"]) +
+  theme(aspect.ratio = params["mel_48974","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval_CSF1R), breaks = c(0, maxval_CSF1R/4, maxval_CSF1R/2, (maxval_CSF1R/4)*3, maxval_CSF1R), colours = c("grey80", "lightskyblue", "deepskyblue", "dodgerblue", "navyblue"))
+  ggsave(filename = paste0(outdir, "CSF1R", "_mel_48974", ".pdf"), width = 5)
+
+```
+
+
+
+```{r}
+DoFeaturePlot <- function(myfeature, maxval) {
+  SpatialFeaturePlot(SCC, features = myfeature, images = "slice1", pt.size.factor = params["SCC_B18","dotsize"]) +
+  theme(aspect.ratio = params["SCC_B18","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+  ggsave(filename = paste0(outdir, myfeature, "_", "SCC_B18", ".jpeg"))
+  
+SpatialFeaturePlot(SCC, features = myfeature, images = "slice1.1", pt.size.factor = params["SCC_E15","dotsize"]) +
+  theme(aspect.ratio = params["SCC_E15","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "SCC_E15", ".jpeg"))
+SpatialFeaturePlot(SCC, features = myfeature, images = "slice1.2", pt.size.factor = params["SCC_F21","dotsize"]) +
+  theme(aspect.ratio = params["SCC_F21","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "SCC_F21", ".jpeg"))
+SpatialFeaturePlot(SCC, features = myfeature, images = "slice1.3", pt.size.factor = params["SCC_P13","dotsize"]) +
+  theme(aspect.ratio = params["SCC_P13","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "SCC_P13", ".jpeg"))
+SpatialFeaturePlot(SCC, features = myfeature, images = "slice1.4", pt.size.factor = params["SCC_P30","dotsize"]) +
+  theme(aspect.ratio = params["SCC_P30","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "SCC_P30", ".jpeg"))
+
+SpatialFeaturePlot(BCC, features = myfeature, images = "slice1", pt.size.factor = params["BCC_B18","dotsize"]) + 
+  theme(aspect.ratio = params["BCC_B18","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "BCC_B18", ".jpeg"))
+SpatialFeaturePlot(BCC, features = myfeature, images = "slice1.1", pt.size.factor = params["BCC_E15","dotsize"]) +
+  theme(aspect.ratio = params["BCC_E15","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "BCC_E15", ".jpeg"))
+SpatialFeaturePlot(BCC, features = myfeature, images = "slice1.2", pt.size.factor = params["BCC_F21","dotsize"]) +
+  theme(aspect.ratio = params["BCC_F21","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "BCC_F21", ".jpeg"))
+
+SpatialFeaturePlot(Mela, features = myfeature, images = params["mel_48974","slice"], pt.size.factor = params["mel_48974","dotsize"]) +
+  theme(aspect.ratio = params["mel_48974","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "mel_48974", ".jpeg"))
+SpatialFeaturePlot(Mela, features = myfeature, images = "slice1.1", pt.size.factor = params["mel_66487","dotsize"]) +
+  theme(aspect.ratio = params["mel_66487","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "mel_66487", ".jpeg"))
+SpatialFeaturePlot(Mela, features = myfeature, images = "slice1.2", pt.size.factor = params["mel_21031","dotsize"]) +
+  theme(aspect.ratio = params["mel_21031","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "mel_21031", ".jpeg"))
+SpatialFeaturePlot(Mela, features = myfeature, images = "slice1.3", pt.size.factor = params["mel_6747","dotsize"]) + 
+  theme(aspect.ratio = params["mel_6747","ratio"]) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "lightskyblue", "deepslyblue", "dodgerblue", "navyblue"))
+ggsave(filename = paste0(outdir, myfeature, "_", "mel_6747", ".jpeg"))
+}
+```
+
+```{r}
+## get the scale for each gene
+maxval <- max(BCC_B18$IL34_CSF1R,
+BCC_F21$IL34_CSF1R,
+SCC_B18$IL34_CSF1R,
+SCC_P13$IL34_CSF1R,
+SCC_P30$IL34_CSF1R,
+mel_6747$IL34_CSF1R,
+mel_21031$IL34_CSF1R,
+mel_48974$IL34_CSF1R,
+mel_66487$IL34_CSF1R)
+```
+
+```{r}
+DoFeaturePlot("IL34", maxval = maxval)
+DoFeaturePlot("CSF1R", maxval = maxval)
+```
+
+
+# Plot the scores in the tissues
+
+```{r}
+# filter to genes of interest
+SCC_scores <- SCC_scores[,"IL34_CSF1R", drop = FALSE]
+BCC_scores <- BCC_scores[,"IL34_CSF1R", drop = FALSE]
+mel_scores <- mel_scores[,"IL34_CSF1R", drop = FALSE]
+
+# Add to metadata
+SCC_seurat <- AddMetaData(SCC_seurat, SCC_scores)
+BCC_seurat <- AddMetaData(BCC_seurat, BCC_scores)
+mel_seurat <- AddMetaData(mel_seurat, mel_scores)
+```
+
+# Plot
+
+## get plotting parameters
+
+```{r}
+coord_SCC <- GetTissueCoordinates(object = SCC_seurat)
+coord_BCC <- GetTissueCoordinates(object = BCC_seurat)
+coord_mel <- GetTissueCoordinates(object = mel_seurat)
+
+ratio_SCC <- (max(coord_SCC$imagerow) - min(coord_SCC$imagerow)) / (max(coord_SCC$imagecol) - min(coord_SCC$imagecol))
+ratio_BCC <- (max(coord_BCC$imagerow) - min(coord_BCC$imagerow)) / (max(coord_BCC$imagecol) - min(coord_BCC$imagecol))
+ratio_mel <- (max(coord_mel$imagerow) - min(coord_mel$imagerow)) / (max(coord_mel$imagecol) - min(coord_mel$imagecol))
+
+SpatialDimPlot(SCC_seurat, pt.size.factor = 1.3) + NoLegend() +
+  theme(aspect.ratio = ratio_SCC)
+SpatialDimPlot(BCC_seurat, pt.size.factor = 1.4) + NoLegend() +
+  theme(aspect.ratio = ratio_BCC)
+SpatialDimPlot(mel_seurat, pt.size.factor = 1.3) + NoLegend() +
+  theme(aspect.ratio = ratio_mel)
+
+dot_SCC <- 1.3
+dot_BCC <- 1.4
+dot_mel <- 1.3
+```
+
+```{r}
+## get the scale for each gene
+SCC_max <- data.frame(LR = colnames(SCC_scores),
+                      max = matrixStats::colMaxs(as.matrix(SCC_scores[sapply(SCC_scores, is.numeric)])),
+                      sample = rep("SCC", length(colnames(SCC_scores))))
+BCC_max <- data.frame(LR = colnames(BCC_scores),
+                      max = matrixStats::colMaxs(as.matrix(BCC_scores[sapply(BCC_scores, is.numeric)])),
+                      sample = rep("BCC", length(colnames(BCC_scores))))
+mel_max <- data.frame(LR = colnames(mel_scores),
+                      max = matrixStats::colMaxs(as.matrix(mel_scores[sapply(mel_scores, is.numeric)])),
+                      sample = rep("mel", length(colnames(mel_scores))))
+mymax <- rbind(SCC_max, BCC_max, mel_max)
+mymax <- as.data.frame(tidyr::spread(mymax, key = LR, value = max))
+mymax[is.na(mymax)] <- 0
+rownames(mymax) <- mymax$sample
+mymax$sample <- NULL
+
+# now get the overall max
+scalemax <- data.frame(LR = colnames(mymax),
+                      max = matrixStats::colMaxs(as.matrix(mymax[sapply(mymax, is.numeric)])))
+rownames(scalemax) <- scalemax$LR
+```
+
+
+
+```{r}
+#dir.create(file.path(outdir, "SCC"), showWarnings = FALSE)
+#dir.create(file.path(outdir, "BCC"), showWarnings = FALSE)
+#dir.create(file.path(outdir, "mel"), showWarnings = FALSE)
+#dir.create(file.path(outdir, "all"), showWarnings = FALSE)
+
+for (i in colnames(SCC_scores)) {
+  maxval <- scalemax[i,"max"]
+  minval <- maxval/4
+  SpatialFeaturePlot(SCC_seurat, features = i, pt.size.factor = dot_SCC) +
+    theme(aspect.ratio = ratio_SCC) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "gold", "orange", "red", "brown"))
+  ggsave(filename = paste0(outdir, i, "_SCC", ".pdf"), width = 5)
+}
+
+for (i in colnames(BCC_scores)) {
+  maxval <- scalemax[i,"max"]
+  minval <- maxval/4
+  SpatialFeaturePlot(BCC_seurat, features = i, pt.size.factor = dot_BCC) +
+    theme(aspect.ratio = ratio_BCC) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "gold", "orange", "red", "brown"))
+  ggsave(filename = paste0(outdir, i, "_BCC", ".pdf"), width = 5)
+}
+
+for (i in colnames(mel_scores)) {
+  maxval <- scalemax[i,"max"]
+  minval <- maxval/4
+  SpatialFeaturePlot(mel_seurat, features = i, pt.size.factor = dot_mel) +
+    theme(aspect.ratio = ratio_mel) +
+    ggplot2::scale_fill_gradientn(limits = c(0, maxval), breaks = c(0, maxval/4, maxval/2, (maxval/4)*3, maxval), colours = c("grey80", "gold", "orange", "red", "brown"))
+  ggsave(filename = paste0(outdir, i, "_mel", ".pdf"), width = 5)
+}
+```

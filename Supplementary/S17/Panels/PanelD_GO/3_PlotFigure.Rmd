@@ -1,0 +1,98 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r}
+library(Seurat)
+library(ggplot2)
+library(clusterProfiler)
+library(dplyr)
+library(org.Hs.eg.db)
+library(ggplot2)
+library(ComplexHeatmap)
+library(stringr)
+library(enrichplot)
+```
+
+```{r}
+outdir <- "/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/6_RunGO/3_PlotFigure/outdir/"
+
+cancer <- readRDS("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/6_RunGO/2_RunGO_cancer/outdir/cancer_GOFiltSimp.RDS")
+sampleID <- "LR_GO"
+```
+
+```{r}
+  palette = c(`Cancer` = "deeppink3",
+              `Normal` = "turquoise3",
+              `Shared` = "#6C5D93")  
+```
+
+
+```{r}
+MakeBarplots <- function(mydata, n, myWidth, myHeight, sampleID, colour) {
+  # where n = number of gene to pick
+  # where myWidth = desired width of saved ggplot
+  # where myHeight = desired height of saved ggplot
+  analysisID <- paste0("top", n)
+
+  # get the top N of each group
+  topN <- mydata@result %>%
+    arrange(p.adjust) %>%
+    dplyr::slice(1:n)
+  topN <- mutate(topN, ID_desc = paste0(ID, ": ", Description))
+
+  topNuniq <- unique(topN$Description)
+  topNuniq_IDdesc <- unique(topN$ID_desc)
+  
+  topN_allhits <- mydata@result[which(mydata@result$Description %in% topNuniq),]
+  
+  # prepare the data table
+  table <- topN_allhits[,c(1,2,3,4,5,6)]
+  
+  # add in the various ratios to control dot size
+  table <- tidyr::separate(data = table, col = GeneRatio, into = c("k_GOIinSet", "n_GOI"), sep = "\\/")
+  table <- tidyr::separate(data = table, col = BgRatio, into = c("M_Set", "N_background"), sep = "\\/")
+  ## make numeric
+  table$k_GOIinSet <- as.numeric(table$k_GOIinSet)
+  table$n_GOI <- as.numeric(table$n_GOI)
+  table$M_Set <- as.numeric(table$M_Set)
+  table$N_background <- as.numeric(table$N_background)  
+  ## make a ratio
+  table <- mutate(table, GeneRatio = k_GOIinSet / n_GOI)
+  table <- mutate(table, Ratio_kM = k_GOIinSet / M_Set)
+  
+  # for the sake of visualisation, convert p-values to log10 and invert the numbers of the downregulated hits
+  table <- mutate(table, padjdir = -log10(p.adjust + 1e-300))
+  
+  # simplify the "traj_0_" cluster names to just the number to aid with the ordering/legend
+  #table <- mutate(table, Path = as.numeric(word(Cluster, 2, sep = "_")))
+  #table$Path <- as.factor(table$Path) # convert to factor data type
+  #levels(table$Path) <- sort(as.numeric(levels(table$Path)))
+  
+  # work out which gene to plot and order them by path ID
+  markers <- table$Description %>% unique()
+  table$Description <- factor(table$Description, levels = rev(topNuniq))
+  
+  table <- mutate(table, ID_desc = paste0(ID, ": ", Description))
+  
+  table$Description <- factor(table$Description, levels = rev(topNuniq))
+  table$ID_desc <- factor(table$ID_desc, levels = rev(topNuniq_IDdesc))
+  
+  # generate the plots
+  mybarplot <- ggplot(table, aes(y = Description, x = padjdir)) +
+    geom_bar(stat = "identity", fill = colour) +
+    theme_classic() +
+    theme(axis.title.y = element_blank()) +
+    scale_y_discrete(labels = function(x) str_wrap(x, width = 40))
+  ggsave(plot = mybarplot, filename = paste0(outdir, sampleID, "_barplot_coreGenes.pdf"), width = myWidth, height = myHeight)
+}
+
+write.table(table, file = paste0(outdir, sampleID, "_barplot_coreGenes.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+
+```{r}
+MakeBarplots(cancer, 6, 5, 5, "cancer", colour = "deeppink3")
+```

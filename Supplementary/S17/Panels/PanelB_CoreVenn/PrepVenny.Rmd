@@ -1,0 +1,117 @@
+---
+title: "R Notebook"
+output: html_notebook
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+```{r}
+library(dplyr)
+library(venneuler)
+library(ggplot2)
+```
+
+```{r}
+outdir <- "/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/5_PrepVenns/outdir/"
+
+P1C <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P1C_LR_signif.txt")
+P2C <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P2C_LR_signif.txt")
+P3C <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P3C_LR_signif.txt")
+P4C <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P4C_LR_signif.txt")
+P5C <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P5C_LR_signif.txt")
+
+P1H <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P1H_LR_signif.txt")
+P2H <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P2H_LR_signif.txt")
+P3H <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P3H_LR_signif.txt")
+P4H <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P4H_LR_signif.txt")
+P5H <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/3_ExtractSigHits/outdir/P5H_LR_signif.txt")
+```
+
+```{r}
+clipr::write_clip(unique(P1C$interaction_name))
+clipr::write_clip(unique(P2C$interaction_name))
+clipr::write_clip(unique(P3C$interaction_name))
+clipr::write_clip(unique(P4C$interaction_name))
+clipr::write_clip(unique(P5C$interaction_name))
+```
+
+```{r}
+clipr::write_clip(unique(P1H$interaction_name))
+clipr::write_clip(unique(P2H$interaction_name))
+clipr::write_clip(unique(P3H$interaction_name))
+clipr::write_clip(unique(P4H$interaction_name))
+clipr::write_clip(unique(P5H$interaction_name))
+```
+
+Submit to http://bioinformatics.psb.ugent.be/webtools/Venn/
+Run with settings "symmetric" and "no fill"
+
+# load in the results of the venn diagram, to get the core sets
+
+```{r}
+#healthy_overlap <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/5_PrepVenns/outdir/Venny_healthy.txt")
+#cancer_overlap <- read.delim("/Volumes/flan/Archive/SCC/1_sandbox/20240322_StartSingleCellAgain/13_CellChat/Level2/5_PrepVenns/outdir/Venny_cancer.txt")
+```
+
+```{r}
+all_cancer <- c(unique(P1C$interaction_name),
+                unique(P2C$interaction_name),
+                unique(P3C$interaction_name),
+                unique(P4C$interaction_name),
+                unique(P5C$interaction_name))
+cancer_counts <- as.data.frame(table(all_cancer))
+
+all_healthy <- c(unique(P1H$interaction_name),
+                 unique(P2H$interaction_name),
+                 unique(P3H$interaction_name),
+                 unique(P4H$interaction_name),
+                 unique(P5H$interaction_name))
+healthy_counts <- as.data.frame(table(all_healthy))
+```
+
+```{r}
+core_cancer_4up <- cancer_counts %>% filter(Freq >= 4)
+core_healthy_4up <- healthy_counts %>% filter(Freq >= 4)
+core_cancer_5hits <- cancer_counts %>% filter(Freq == 5)
+core_healthy_5hits <- healthy_counts %>% filter(Freq == 5)
+
+write.table(core_cancer_4up, file = paste0(outdir, "core_4-5hits_cancer.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(core_healthy_4up, file = paste0(outdir, "core_4-5hits_healthy.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(core_cancer_5hits, file = paste0(outdir, "core_5hits_cancer.txt"), sep = "\t", quote = FALSE, col.names = NA)
+write.table(core_healthy_5hits, file = paste0(outdir, "core_5hits_healthy.txt"), sep = "\t", quote = FALSE, col.names = NA)
+```
+
+# make propportional venn diagram
+
+# get the numbers from venny
+
+https://bioinfogp.cnb.csic.es/tools/venny/
+
+```{r}
+clipr::write_clip(as.character(core_cancer_4up$all_cancer))
+clipr::write_clip(as.character(core_healthy_4up$all_healthy))
+# 50 cancer, 21 shared, 8 healthy
+```
+
+```{r}
+clipr::write_clip(as.character(core_cancer_5hits$all_cancer))
+clipr::write_clip(as.character(core_healthy_5hits$all_healthy))
+# 3 cancer, 6 shared, 5 healthy
+```
+
+
+```{r}
+# plot for all 5 patients
+v <- venneuler(c("cancer" = 3, "healthy" = 5, "cancer&healthy" = 6))
+pdf(file = paste0(outdir, "proportionalVenn_All5.pdf"))
+plot(v)
+dev.off()
+
+# plot for 4of5 patients
+v <- venneuler(c("cancer" = 50, "healthy" = 21, "cancer&healthy" = 8))
+pdf(file = paste0(outdir, "proportionalVenn_4of5.pdf"))
+plot(v)
+dev.off()
+```
+
